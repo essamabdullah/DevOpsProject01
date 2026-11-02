@@ -114,7 +114,7 @@ variable "tomcat_version" {
 variable "java_version" {
   description = "OpenJDK major version on app01 (17 or 11). Switch to 11 if the Maven build fails."
   type        = string
-  default     = "17"
+  default     = "11"
 }
 
 # ---------- Login / DNS ----------
