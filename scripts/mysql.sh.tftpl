@@ -1,0 +1,32 @@
+# ---- 1. MySQL (MariaDB) setup - db01 ----
+apt_get install -y mariadb-server git
+
+# Listen on all interfaces so app01 can connect
+sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+systemctl enable --now mariadb
+
+# Non-interactive equivalent of mysql_secure_installation + DB/user creation.
+# Root keeps socket login (so this script can continue) and also gets a password.
+mysql -u root <<'SQL'
+ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket OR mysql_native_password USING PASSWORD('${db_root_password}');
+DROP USER IF EXISTS ''@'localhost';
+DROP DATABASE IF EXISTS test;
+CREATE DATABASE IF NOT EXISTS accounts;
+CREATE USER IF NOT EXISTS '${db_user}'@'%' IDENTIFIED BY '${db_password}';
+GRANT ALL PRIVILEGES ON accounts.* TO '${db_user}'@'%';
+FLUSH PRIVILEGES;
+SQL
+
+# Download source code & initialize database
+git clone -b ${repo_branch} ${repo_url} /tmp/vprofile-project
+mysql -u root accounts < /tmp/vprofile-project/src/main/resources/db_backup.sql
+mysql -u root accounts -e "SHOW TABLES;"
+
+# systemctl start firewalld
+# systemctl enable firewalld
+# firewall-cmd--get-active-zones
+# firewall-cmd--zone=public--add-port=3306/tcp--permanent
+# firewall-cmd--reload
+# systemctl restart mariadb
+systemctl restart mariadb
+echo "db01 setup complete"

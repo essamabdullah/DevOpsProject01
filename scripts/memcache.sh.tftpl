@@ -1,0 +1,10 @@
+# ---- 2. Memcache setup - mc01 ----
+apt_get install -y memcached
+
+# Listen on all interfaces (TCP 11211) and enable UDP 11111 as in the PDF
+sed -i 's/^-l 127.0.0.1/-l 0.0.0.0/' /etc/memcached.conf
+grep -q '^-U' /etc/memcached.conf || echo '-U 11111' >> /etc/memcached.conf
+
+systemctl enable memcached
+systemctl restart memcached
+echo "mc01 setup complete"

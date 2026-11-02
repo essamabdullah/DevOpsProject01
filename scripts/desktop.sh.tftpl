@@ -1,0 +1,68 @@
+#!/bin/bash
+# ---- desktop01 only: XFCE + Firefox + xrdp, for testing the vprofile app ----
+set -euxo pipefail
+exec > >(tee -a /var/log/vprofile-setup.log) 2>&1
+export DEBIAN_FRONTEND=noninteractive
+export HOME=/root
+apt_get() { apt-get -o DPkg::Lock::Timeout=600 "$@"; }
+
+# Names of the vprofile VMs, so Firefox can open http://web01
+cat >> /etc/hosts <<'HOSTS'
+${hosts_entries}
+HOSTS
+
+# Password for the GUI / RDP login (SSH still uses the key)
+echo 'ubuntu:${desktop_password}' | chpasswd
+
+%{ if length(dns_servers) > 0 ~}
+# Force DNS servers on this VM only
+mkdir -p /etc/systemd/resolved.conf.d
+printf '[Resolve]\nDNS=${join(" ", dns_servers)}\n' > /etc/systemd/resolved.conf.d/dns.conf
+systemctl restart systemd-resolved
+%{ endif ~}
+
+# Wait up to 5 minutes for DNS; stop with a clear error if it never works
+for i in $(seq 1 30); do
+  getent hosts archive.ubuntu.com && break
+  echo "waiting for DNS ($i/30)..."; sleep 10
+done
+getent hosts archive.ubuntu.com
+
+apt_get update -y --error-on=any
+
+# Desktop environment, login screen, RDP server
+apt_get install -y xfce4 xfce4-terminal lightdm lightdm-gtk-greeter dbus-x11 xrdp wget
+
+# Firefox from Mozilla's apt repo (Ubuntu's own "firefox" package is only a snap wrapper).
+# -4 + timeouts: never hang on a blocked HTTPS/IPv6 path; fall back to Falkon from Ubuntu's repo.
+install -d -m 0755 /etc/apt/keyrings
+if wget -4 -q --timeout=30 --tries=3 https://packages.mozilla.org/apt/repo-signing-key.gpg \
+     -O /etc/apt/keyrings/packages.mozilla.org.asc; then
+  echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
+    > /etc/apt/sources.list.d/mozilla.list
+  cat > /etc/apt/preferences.d/mozilla <<'PIN'
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000
+PIN
+  apt_get update -y --error-on=any
+  apt_get install -y firefox
+else
+  echo "packages.mozilla.org unreachable - installing the Falkon browser instead"
+  rm -f /etc/apt/keyrings/packages.mozilla.org.asc
+  apt_get install -y falkon
+fi
+
+# RDP login opens an XFCE session for the ubuntu user
+echo xfce4-session > /home/ubuntu/.xsession
+chown ubuntu:ubuntu /home/ubuntu/.xsession
+adduser xrdp ssl-cert
+systemctl enable xrdp
+systemctl restart xrdp
+
+# Graphical login screen on the Horizon console
+systemctl set-default graphical.target
+systemctl enable lightdm
+systemctl start lightdm || true
+
+echo "desktop01 setup complete"

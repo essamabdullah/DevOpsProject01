@@ -1,0 +1,58 @@
+# ---- 4. Tomcat setup + code build & deploy - app01 ----
+apt_get install -y openjdk-${java_version}-jdk maven git wget
+JAVA_HOME_DIR=/usr/lib/jvm/java-${java_version}-openjdk-amd64
+
+# Download & install Tomcat 9 (the app uses javax.*, so not Ubuntu's Tomcat 10)
+wget -q https://archive.apache.org/dist/tomcat/tomcat-9/v${tomcat_version}/bin/apache-tomcat-${tomcat_version}.tar.gz -O /tmp/tomcat.tar.gz
+useradd --system --home-dir /usr/local/tomcat --shell /usr/sbin/nologin tomcat
+mkdir -p /usr/local/tomcat
+tar xzf /tmp/tomcat.tar.gz -C /usr/local/tomcat --strip-components=1
+chown -R tomcat:tomcat /usr/local/tomcat
+
+# systemd unit (same as the PDF, with the Ubuntu Java path)
+cat > /etc/systemd/system/tomcat.service <<UNIT
+[Unit]
+Description=Tomcat
+After=network.target
+
+[Service]
+User=tomcat
+WorkingDirectory=/usr/local/tomcat
+Environment=JRE_HOME=$JAVA_HOME_DIR
+Environment=JAVA_HOME=$JAVA_HOME_DIR
+Environment=CATALINA_HOME=/usr/local/tomcat
+Environment=CATALINA_BASE=/usr/local/tomcat
+ExecStart=/usr/local/tomcat/bin/catalina.sh run
+ExecStop=/usr/local/tomcat/bin/shutdown.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now tomcat
+
+# Download source code
+git clone -b ${repo_branch} ${repo_url} /tmp/vprofile-project
+cd /tmp/vprofile-project
+
+# Update application.properties with backend details.
+# Hostnames db01/mc01/rmq01 already match /etc/hosts; only credentials are set here.
+PROPS=src/main/resources/application.properties
+sed -i "s|^jdbc.username=.*|jdbc.username=${db_user}|"           $PROPS
+sed -i "s|^jdbc.password=.*|jdbc.password=${db_password}|"       $PROPS
+sed -i "s|^rabbitmq.username=.*|rabbitmq.username=${rmq_user}|"  $PROPS
+sed -i "s|^rabbitmq.password=.*|rabbitmq.password=${rmq_password}|" $PROPS
+
+# Build code
+export JAVA_HOME=$JAVA_HOME_DIR
+mvn -B install -DskipTests
+
+# Deploy artifact
+systemctl stop tomcat
+rm -rf /usr/local/tomcat/webapps/ROOT*
+cp target/vprofile-v2.war /usr/local/tomcat/webapps/ROOT.war
+chown -R tomcat:tomcat /usr/local/tomcat/webapps
+systemctl start tomcat
+echo "app01 setup complete"

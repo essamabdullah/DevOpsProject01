@@ -1,0 +1,23 @@
+# Copy the values you need into terraform.tfvars (keep your real passwords there).
+
+os_cloud      = "openstack"                 # entry in ~/.config/openstack/clouds.yaml
+network_name  = "CHANGE-ME"                 # from: openstack network list
+image_name    = "Ubuntu 24.04 LTS"          # from: openstack image list (exact name)
+flavor_name   = "CHANGE-ME"                 # from: openstack flavor list
+key_pair_name = "n-keypair"                 # must be type "ssh", not x509
+
+# No floating IP: the internal network already reaches the internet through its router
+external_network_name = ""
+
+# Step-by-step testing: start with one VM, then add the others one at a time
+vm_names = ["web01"]
+# vm_names = ["web01", "db01"]
+# vm_names = ["web01", "db01", "mc01"]
+# vm_names = ["web01", "db01", "mc01", "rmq01"]
+# vm_names = []                             # empty = all five
+
+# Skip the GUI test desktop for now
+enable_desktop = false
+
+# Console login for the ubuntu user (Dashboard -> Instances -> Console)
+ubuntu_password = "CHANGE-ME"

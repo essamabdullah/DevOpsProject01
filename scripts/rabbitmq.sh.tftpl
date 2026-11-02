@@ -1,0 +1,15 @@
+# ---- 3. RabbitMQ setup - rmq01 ----
+apt_get install -y rabbitmq-server
+
+# Equivalent of [{rabbit, [{loopback_users, []}]}]. in the new config format
+echo 'loopback_users = none' > /etc/rabbitmq/rabbitmq.conf
+
+systemctl enable rabbitmq-server
+systemctl restart rabbitmq-server
+rabbitmqctl await_startup
+
+# Create the app user and make it admin
+rabbitmqctl add_user '${rmq_user}' '${rmq_password}' || rabbitmqctl change_password '${rmq_user}' '${rmq_password}'
+rabbitmqctl set_user_tags '${rmq_user}' administrator
+rabbitmqctl set_permissions -p / '${rmq_user}' '.*' '.*' '.*'
+echo "rmq01 setup complete"

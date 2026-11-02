@@ -1,0 +1,27 @@
+# ---- 5. Nginx setup - web01 ----
+apt_get install -y nginx
+
+cat > /etc/nginx/sites-available/vproapp <<'NGINX'
+upstream vproapp {
+    server app01:8080;
+}
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://vproapp;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+NGINX
+
+rm -f /etc/nginx/sites-enabled/default
+ln -sf /etc/nginx/sites-available/vproapp /etc/nginx/sites-enabled/vproapp
+
+nginx -t
+systemctl enable nginx
+systemctl restart nginx
+echo "web01 setup complete"
